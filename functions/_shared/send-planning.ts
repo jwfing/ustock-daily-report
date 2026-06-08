@@ -6,7 +6,7 @@ export type Lang = 'zh' | 'en'
 export interface ReportRow {
   id: string
   lang: Lang
-  status: string
+  status: 'ready' | 'sent' | 'generating'
   title: string
   content_html: string | null
   content_md: string
@@ -28,7 +28,20 @@ export interface PlannedSend {
   report: ReportRow
 }
 
-/** Index report rows by language, keeping only deliverable (ready/sent) rows. */
+/**
+ * Build a Set of `"report_id:user_id"` keys from existing delivery rows so we
+ * can O(1)-check whether a send has already been attempted.
+ */
+function handledKeys(deliveries: DeliveryRow[]): Set<string> {
+  return new Set(deliveries.map(d => `${d.report_id}:${d.user_id}`))
+}
+
+/**
+ * Index report rows by language, keeping only deliverable (ready/sent) rows.
+ * The DB enforces a unique constraint on (report_date, lang), so each language
+ * appears at most once in `reports`; duplicate-lang input does not occur in
+ * practice (last-writer-wins if it somehow did).
+ */
 export function readyReportsByLang(reports: ReportRow[]): Partial<Record<Lang, ReportRow>> {
   const out: Partial<Record<Lang, ReportRow>> = {}
   for (const r of reports) {
@@ -50,7 +63,7 @@ export function planBatch(args: {
   batch: number
 }): PlannedSend[] {
   const byLang = readyReportsByLang(args.reports)
-  const handled = new Set(args.deliveries.map(d => `${d.report_id}:${d.user_id}`))
+  const handled = handledKeys(args.deliveries)
   const sends: PlannedSend[] = []
   for (const sub of args.activeSubs) {
     if (sends.length >= args.batch) break
@@ -73,7 +86,7 @@ export function pendingByLang(args: {
   deliveries: DeliveryRow[]
 }): Partial<Record<Lang, number>> {
   const byLang = readyReportsByLang(args.reports)
-  const handled = new Set(args.deliveries.map(d => `${d.report_id}:${d.user_id}`))
+  const handled = handledKeys(args.deliveries)
   const out: Partial<Record<Lang, number>> = {}
   for (const lang of Object.keys(byLang) as Lang[]) {
     const report = byLang[lang]!
