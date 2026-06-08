@@ -36,7 +36,7 @@ export interface Dict {
 
 export const translations: Record<Lang, Dict> = {
   en: {
-    nav: { brand: '📈 US Stock Daily', archive: 'Archive', login: 'Sign in', logout: 'Sign out' },
+    nav: { brand: 'US Stock Daily', archive: 'Archive', login: 'Sign in', logout: 'Sign out' },
     common: { loading: 'Loading…' },
     auth: {
       titleSignIn: 'Sign in', titleSignUp: 'Create account', titleVerify: 'Verify email',
@@ -123,7 +123,7 @@ export const translations: Record<Lang, Dict> = {
     },
   },
   zh: {
-    nav: { brand: '📈 美股日报', archive: '日报归档', login: '登录', logout: '退出' },
+    nav: { brand: '美股日报', archive: '日报归档', login: '登录', logout: '退出' },
     common: { loading: '加载中…' },
     auth: {
       titleSignIn: '登录', titleSignUp: '注册', titleVerify: '验证邮箱',
