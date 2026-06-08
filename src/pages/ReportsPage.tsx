@@ -23,22 +23,22 @@ export function ReportsPage() {
     })()
   }, [])
 
-  if (loading) return <p className="text-slate-500">{t.common.loading}</p>
+  if (loading) return <p className="text-stone">{t.common.loading}</p>
 
   return (
-    <div>
-      <h1 className="mb-4 text-xl font-semibold">{t.reports.title}</h1>
+    <div className="font-serif">
+      <h1 className="mb-5 text-2xl font-medium text-near">{t.reports.title}</h1>
       {err ? (
-        <p className="text-amber-700">{t.reports.needSub} <Link className="text-blue-600" to="/">{t.reports.goSubscribe}</Link></p>
+        <p className="text-stone">{t.reports.needSub} <Link className="text-ink hover:text-ink-light" to="/">{t.reports.goSubscribe}</Link></p>
       ) : rows.length === 0 ? (
-        <p className="text-slate-500">{t.reports.empty}</p>
+        <p className="text-stone">{t.reports.empty}</p>
       ) : (
-        <ul className="divide-y rounded border bg-white">
+        <ul className="divide-y divide-line rounded-lg border border-line bg-ivory">
           {rows.map(r => (
             <li key={r.id}>
-              <Link to={`/reports/${r.id}`} className="flex justify-between p-3 hover:bg-slate-50">
-                <span>{r.title}</span>
-                <span className="text-slate-400">{r.report_date}</span>
+              <Link to={`/reports/${r.id}`} className="flex justify-between p-3.5 transition hover:bg-parchment">
+                <span className="text-near">{r.title}</span>
+                <span className="text-stone tabular-nums">{r.report_date}</span>
               </Link>
             </li>
           ))}

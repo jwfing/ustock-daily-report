@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* kami · 紙 — warm parchment canvas, ink-blue accent, serif-led hierarchy */
+@layer base {
+  html {
+    font-family: Charter, Georgia, Palatino, 'Times New Roman', serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: #f5f4ed;
+    color: #141413;
+  }
+}

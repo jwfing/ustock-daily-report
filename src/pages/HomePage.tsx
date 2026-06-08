@@ -6,7 +6,7 @@ import { useLang } from '../i18n/LanguageContext'
 
 interface Subscription { id: string; status: string }
 
-function CtaBlock() {
+function CtaBlock({ dark = false }: { dark?: boolean }) {
   const { user, loading } = useAuth()
   const { t } = useLang()
   const [sub, setSub] = useState<Subscription | null>(null)
@@ -43,72 +43,78 @@ function CtaBlock() {
     await load(); setBusy(false)
   }
 
+  const pill = dark
+    ? 'rounded-full border-[1.5px] border-ivory bg-ivory px-6 py-3 font-medium text-ink transition hover:bg-transparent hover:text-ivory'
+    : 'rounded-full border-[1.5px] border-ink bg-ink px-6 py-3 font-medium text-ivory transition hover:bg-ink-light hover:border-ink-light'
+  const trust = dark ? 'text-sm text-ivory/70' : 'text-sm text-stone'
+  const center = dark ? 'items-center' : 'items-start'
+
   if (loading || (user && !ready)) {
-    return <div className="h-12 w-44 animate-pulse rounded-lg bg-white/10" />
+    return <div className={`h-12 w-44 animate-pulse rounded-full ${dark ? 'bg-ivory/20' : 'bg-sand'}`} />
   }
 
   if (!user) {
     return (
-      <div className="flex flex-col items-start gap-2">
-        <Link to="/auth" className="rounded-lg bg-blue-500 px-6 py-3 font-medium text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400">
-          {t.home.subscribeFree}
-        </Link>
-        <span className="text-sm text-slate-400">{t.home.trustLine}</span>
+      <div className={`flex flex-col gap-2 ${center}`}>
+        <Link to="/auth" className={pill}>{t.home.subscribeFree}</Link>
+        <span className={trust}>{t.home.trustLine}</span>
       </div>
     )
   }
 
   if (sub?.status === 'active') {
     return (
-      <div className="flex flex-col items-start gap-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-lg bg-green-500/15 px-4 py-2 font-medium text-green-300">{t.home.subscribed}（{user.email}）</span>
-          <Link to="/reports" className="rounded-lg bg-blue-500 px-4 py-2 font-medium text-white transition hover:bg-blue-400">{t.home.viewArchive}</Link>
+      <div className={`flex flex-col gap-3 ${center}`}>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <span className={`rounded-full border px-4 py-2 font-medium ${dark ? 'border-ivory/30 text-ivory' : 'border-ink/20 text-ink'}`}>
+            {t.home.subscribed}（{user.email}）
+          </span>
+          <Link to="/reports" className={pill}>{t.home.viewArchive}</Link>
         </div>
-        <button disabled={busy} onClick={unsubscribe} className="text-sm text-slate-400 underline-offset-2 hover:underline disabled:opacity-50">{t.home.unsubscribe}</button>
+        <button disabled={busy} onClick={unsubscribe} className={`${trust} underline-offset-4 hover:underline disabled:opacity-50`}>
+          {t.home.unsubscribe}
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col items-start gap-2">
-      <button disabled={busy} onClick={subscribe} className="rounded-lg bg-blue-500 px-6 py-3 font-medium text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400 disabled:opacity-50">
-        {t.home.subscribeStart}
-      </button>
-      <span className="text-sm text-slate-400">{t.home.trustLine}</span>
+    <div className={`flex flex-col gap-2 ${center}`}>
+      <button disabled={busy} onClick={subscribe} className={`${pill} disabled:opacity-50`}>{t.home.subscribeStart}</button>
+      <span className={trust}>{t.home.trustLine}</span>
     </div>
   )
 }
+
+const eyebrow = 'text-xs font-medium uppercase tracking-[0.18em] text-ink'
 
 export function HomePage() {
   const { t } = useLang()
   const h = t.home
   return (
-    <div className="-mx-4 -my-4">
+    <div className="-mx-4 -my-4 font-serif">
       {/* Hero */}
-      <section className="bg-slate-900 px-6 py-14 text-white">
+      <section className="border-b border-sand bg-parchment px-6 py-16 sm:py-20">
         <div className="mx-auto max-w-2xl">
-          <span className="inline-block rounded-full border border-blue-400/30 bg-blue-400/10 px-3 py-1 text-xs font-medium text-blue-300">
-            {h.badge}
-          </span>
-          <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-4xl">
+          <span className={eyebrow}>{h.badge}</span>
+          <h1 className="mt-5 text-4xl font-medium leading-[1.1] text-near sm:text-5xl">
             {h.heroTitleL1}<br />{h.heroTitleL2}
           </h1>
-          <p className="mt-4 text-lg text-slate-300">{h.heroSubtitle}</p>
-          <div className="mt-8"><CtaBlock /></div>
+          <p className="mt-5 text-lg leading-relaxed text-stone">{h.heroSubtitle}</p>
+          <div className="mt-9"><CtaBlock /></div>
         </div>
       </section>
 
       {/* What's inside */}
-      <section className="px-6 py-12">
+      <section className="bg-parchment px-6 py-14">
         <div className="mx-auto max-w-2xl">
-          <h2 className="text-xl font-semibold text-slate-900">{h.featuresTitle}</h2>
-          <p className="mt-1 text-slate-500">{h.featuresSub}</p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <h2 className="text-2xl font-medium text-near">{h.featuresTitle}</h2>
+          <p className="mt-2 text-stone">{h.featuresSub}</p>
+          <div className="mt-7 grid gap-4 sm:grid-cols-2">
             {h.features.map(f => (
-              <div key={f.title} className="rounded-xl border bg-white p-4">
-                <h3 className="font-medium text-slate-900">{f.title}</h3>
-                <p className="mt-1 text-sm text-slate-500">{f.desc}</p>
+              <div key={f.title} className="rounded-lg border border-line bg-ivory p-5">
+                <h3 className="font-medium text-near">{f.title}</h3>
+                <p className="mt-1.5 text-[15px] leading-relaxed text-stone">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -116,74 +122,74 @@ export function HomePage() {
       </section>
 
       {/* Real sample preview */}
-      <section className="bg-slate-100 px-6 py-12">
+      <section className="border-y border-sand bg-sand/40 px-6 py-14">
         <div className="mx-auto max-w-2xl">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900">{h.sampleTitle}</h2>
-            <span className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-500">{h.sampleBadge}</span>
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-2xl font-medium text-near">{h.sampleTitle}</h2>
+            <span className="text-xs uppercase tracking-[0.15em] text-stone">{h.sampleBadge}</span>
           </div>
-          <div className="mt-4 overflow-hidden rounded-xl border bg-white shadow-sm">
-            <div className="border-b bg-slate-50 px-5 py-3 text-sm text-slate-500">{h.sampleSubject}</div>
-            <div className="space-y-4 px-5 py-5 text-sm leading-relaxed text-slate-700">
+          <div className="mt-5 overflow-hidden rounded-lg border border-line bg-ivory">
+            <div className="border-b border-line bg-parchment px-5 py-3 text-sm text-stone">{h.sampleSubject}</div>
+            <div className="space-y-5 px-5 py-6 text-[15px] leading-relaxed text-near/90">
               <div>
-                <div className="font-semibold text-slate-900">{h.sampleSummaryTitle}</div>
-                <p className="mt-1">{h.sampleSummary}</p>
-                <p className="mt-2 rounded bg-amber-50 px-3 py-2 text-amber-800">{h.sampleStatus}</p>
+                <div className="font-medium text-near">{h.sampleSummaryTitle}</div>
+                <p className="mt-1.5 text-stone">{h.sampleSummary}</p>
+                <p className="mt-3 border-l-2 border-ink/40 bg-ink-tint px-4 py-2 text-ink">{h.sampleStatus}</p>
               </div>
               <div>
-                <div className="font-semibold text-slate-900">{h.sampleOverviewTitle}</div>
+                <div className="font-medium text-near">{h.sampleOverviewTitle}</div>
                 <div className="mt-2 overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="text-slate-400">
-                      <tr>
-                        <th className="py-1 pr-4">{h.thIndex}</th>
-                        <th className="py-1 pr-4">{h.thClose}</th>
-                        <th className="py-1 pr-4">{h.thChange}</th>
-                        <th className="py-1">{h.thTech}</th>
+                  <table className="w-full text-left text-[13px]">
+                    <thead className="text-stone">
+                      <tr className="border-b border-line">
+                        <th className="py-1.5 pr-4 font-medium">{h.thIndex}</th>
+                        <th className="py-1.5 pr-4 font-medium">{h.thClose}</th>
+                        <th className="py-1.5 pr-4 font-medium">{h.thChange}</th>
+                        <th className="py-1.5 font-medium">{h.thTech}</th>
                       </tr>
                     </thead>
-                    <tbody className="text-slate-600">
+                    <tbody className="text-near/80">
                       {h.rows.map(r => (
-                        <tr key={r.name} className="border-t">
-                          <td className="py-1 pr-4">{r.name}</td>
-                          <td className="py-1 pr-4">{r.close}</td>
-                          <td className="py-1 pr-4 text-red-600">{r.change}</td>
-                          <td className="py-1">{r.tech}</td>
+                        <tr key={r.name} className="border-b border-line/60">
+                          <td className="py-1.5 pr-4">{r.name}</td>
+                          <td className="py-1.5 pr-4 tabular-nums">{r.close}</td>
+                          <td className="py-1.5 pr-4 tabular-nums text-[#a3392f]">{r.change}</td>
+                          <td className="py-1.5">{r.tech}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
-              <p className="text-xs text-slate-400">{h.sampleFooter}</p>
+              <p className="text-[13px] text-stone">{h.sampleFooter}</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Why subscribe */}
-      <section className="px-6 py-12">
+      <section className="bg-parchment px-6 py-14">
         <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-3">
           {h.why.map(w => (
-            <div key={w.title} className="rounded-xl border bg-white p-4">
+            <div key={w.title} className="rounded-lg border border-line bg-ivory p-5">
               <div className="text-2xl">{w.icon}</div>
-              <h3 className="mt-2 font-medium text-slate-900">{w.title}</h3>
-              <p className="mt-1 text-sm text-slate-500">{w.desc}</p>
+              <h3 className="mt-2.5 font-medium text-near">{w.title}</h3>
+              <p className="mt-1.5 text-[15px] leading-relaxed text-stone">{w.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* How it works */}
-      <section className="bg-slate-100 px-6 py-12">
+      <section className="border-y border-sand bg-ivory px-6 py-14">
         <div className="mx-auto max-w-2xl">
-          <h2 className="text-xl font-semibold text-slate-900">{h.stepsTitle}</h2>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <h2 className="text-2xl font-medium text-near">{h.stepsTitle}</h2>
+          <div className="mt-7 grid gap-4 sm:grid-cols-3">
             {h.steps.map((s, i) => (
-              <div key={s.title} className="rounded-xl border bg-white p-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 font-semibold text-white">{i + 1}</div>
-                <h3 className="mt-3 font-medium text-slate-900">{s.title}</h3>
-                <p className="mt-1 text-sm text-slate-500">{s.desc}</p>
+              <div key={s.title} className="rounded-lg border border-line bg-parchment p-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-ink font-medium text-ink">{i + 1}</div>
+                <h3 className="mt-3 font-medium text-near">{s.title}</h3>
+                <p className="mt-1.5 text-[15px] leading-relaxed text-stone">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -191,12 +197,12 @@ export function HomePage() {
       </section>
 
       {/* Bottom CTA */}
-      <section className="bg-slate-900 px-6 py-14 text-white">
+      <section className="bg-ink px-6 py-16 text-ivory">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-2xl font-bold">{h.bottomTitle}</h2>
-          <p className="mt-2 text-slate-300">{h.bottomSub}</p>
-          <div className="mt-6 flex justify-center"><CtaBlock /></div>
-          <p className="mx-auto mt-8 max-w-xl text-xs text-slate-500">{h.disclaimer}</p>
+          <h2 className="text-2xl font-medium sm:text-3xl">{h.bottomTitle}</h2>
+          <p className="mt-3 text-ivory/80">{h.bottomSub}</p>
+          <div className="mt-7 flex justify-center"><CtaBlock dark /></div>
+          <p className="mx-auto mt-9 max-w-xl text-xs text-ivory/55">{h.disclaimer}</p>
         </div>
       </section>
     </div>

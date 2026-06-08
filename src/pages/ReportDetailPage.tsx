@@ -21,13 +21,13 @@ export function ReportDetailPage() {
     })()
   }, [id])
 
-  if (err) return <p className="text-amber-700">{t.detail.cannotLoad} <Link className="text-blue-600" to="/reports">{t.detail.back}</Link></p>
-  if (md === null) return <p className="text-slate-500">{t.common.loading}</p>
+  if (err) return <p className="text-stone">{t.detail.cannotLoad} <Link className="text-ink hover:text-ink-light" to="/reports">{t.detail.back}</Link></p>
+  if (md === null) return <p className="text-stone">{t.common.loading}</p>
 
   return (
-    <article>
-      <Link to="/reports" className="text-sm text-blue-600">{t.detail.back}</Link>
-      <h1 className="my-3 text-xl font-semibold">{title}</h1>
+    <article className="font-serif">
+      <Link to="/reports" className="text-sm text-ink hover:text-ink-light">{t.detail.back}</Link>
+      <h1 className="my-3 text-2xl font-medium text-near">{title}</h1>
       <Markdown md={md} />
     </article>
   )

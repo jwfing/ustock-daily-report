@@ -6,6 +6,10 @@ import { useLang } from '../i18n/LanguageContext'
 
 type Mode = 'signin' | 'signup' | 'verify'
 
+const input = 'w-full rounded-lg border border-line bg-ivory p-2.5 text-near outline-none transition focus:border-ink'
+const primary = 'w-full rounded-full border-[1.5px] border-ink bg-ink p-2.5 font-medium text-ivory transition hover:bg-ink-light hover:border-ink-light disabled:opacity-50'
+const ghost = 'flex-1 rounded-full border border-ink/40 p-2.5 text-sm text-ink transition hover:border-ink hover:bg-ink-tint'
+
 export function AuthPage() {
   const { refresh } = useAuth()
   const { t } = useLang()
@@ -56,37 +60,37 @@ export function AuthPage() {
   const title = mode === 'signup' ? t.auth.titleSignUp : mode === 'verify' ? t.auth.titleVerify : t.auth.titleSignIn
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-4 text-xl font-semibold">{title}</h1>
+    <div className="mx-auto max-w-sm font-serif">
+      <h1 className="mb-5 text-2xl font-medium text-near">{title}</h1>
 
       {mode === 'verify' ? (
         <form onSubmit={onVerify} className="space-y-3">
-          <input className="w-full rounded border p-2" placeholder={t.auth.email} value={email} onChange={e => setEmail(e.target.value)} />
-          <input className="w-full rounded border p-2" placeholder={t.auth.otp} value={otp} onChange={e => setOtp(e.target.value)} />
-          <button disabled={busy} className="w-full rounded bg-blue-600 p-2 text-white disabled:opacity-50">{t.auth.confirm}</button>
-          <button type="button" className="text-sm text-slate-500" onClick={() => insforge.auth.resendVerificationEmail({ email })}>{t.auth.resend}</button>
+          <input className={input} placeholder={t.auth.email} value={email} onChange={e => setEmail(e.target.value)} />
+          <input className={input} placeholder={t.auth.otp} value={otp} onChange={e => setOtp(e.target.value)} />
+          <button disabled={busy} className={primary}>{t.auth.confirm}</button>
+          <button type="button" className="text-sm text-stone hover:text-ink" onClick={() => insforge.auth.resendVerificationEmail({ email })}>{t.auth.resend}</button>
         </form>
       ) : (
         <form onSubmit={mode === 'signup' ? onSignUp : onSignIn} className="space-y-3">
           {mode === 'signup' && (
-            <input className="w-full rounded border p-2" placeholder={t.auth.name} value={name} onChange={e => setName(e.target.value)} />
+            <input className={input} placeholder={t.auth.name} value={name} onChange={e => setName(e.target.value)} />
           )}
-          <input className="w-full rounded border p-2" placeholder={t.auth.email} type="email" value={email} onChange={e => setEmail(e.target.value)} />
-          <input className="w-full rounded border p-2" placeholder={t.auth.password} type="password" value={password} onChange={e => setPassword(e.target.value)} />
-          <button disabled={busy} className="w-full rounded bg-blue-600 p-2 text-white disabled:opacity-50">{mode === 'signup' ? t.auth.signUp : t.auth.signIn}</button>
+          <input className={input} placeholder={t.auth.email} type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          <input className={input} placeholder={t.auth.password} type="password" value={password} onChange={e => setPassword(e.target.value)} />
+          <button disabled={busy} className={primary}>{mode === 'signup' ? t.auth.signUp : t.auth.signIn}</button>
         </form>
       )}
 
-      {msg && <p className="mt-3 text-sm text-amber-700">{msg}</p>}
+      {msg && <p className="mt-3 text-sm text-[#a3392f]">{msg}</p>}
 
       <div className="mt-4 flex gap-3">
-        <button onClick={() => oauth('google')} className="flex-1 rounded border p-2 text-sm hover:bg-slate-50">{t.auth.google}</button>
-        <button onClick={() => oauth('github')} className="flex-1 rounded border p-2 text-sm hover:bg-slate-50">{t.auth.github}</button>
+        <button onClick={() => oauth('google')} className={ghost}>{t.auth.google}</button>
+        <button onClick={() => oauth('github')} className={ghost}>{t.auth.github}</button>
       </div>
 
-      <p className="mt-4 text-sm text-slate-500">
+      <p className="mt-5 text-sm text-stone">
         {mode === 'signup' ? t.auth.haveAccount : t.auth.noAccount}{' '}
-        <button className="text-blue-600" onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setMsg(null) }}>
+        <button className="text-ink hover:text-ink-light" onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setMsg(null) }}>
           {mode === 'signup' ? t.auth.goSignIn : t.auth.goSignUp}
         </button>
       </p>
