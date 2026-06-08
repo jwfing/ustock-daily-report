@@ -10,6 +10,7 @@ import { HomePage } from './pages/HomePage'
 import { AuthPage } from './pages/AuthPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { ReportDetailPage } from './pages/ReportDetailPage'
+import { PublicReportPage } from './pages/PublicReportPage'
 
 const router = createBrowserRouter([
   {
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: '/auth', element: <AuthPage /> },
       { path: '/reports', element: <ProtectedRoute><ReportsPage /></ProtectedRoute> },
       { path: '/reports/:id', element: <ProtectedRoute><ReportDetailPage /></ProtectedRoute> },
+      { path: '/r/:id', element: <PublicReportPage /> },
     ],
   },
 ])

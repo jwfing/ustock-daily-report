@@ -30,6 +30,8 @@ export interface Dict {
   }
   reports: { title: string; needSub: string; goSubscribe: string; empty: string }
   detail: { back: string; cannotLoad: string }
+  share: { share: string; shareOnX: string; copy: string; copied: string; tweet: (title: string) => string }
+  pub: { tagline: string; subscribeCta: string; subscribeBtn: string; notFound: string; explore: string }
 }
 
 export const translations: Record<Lang, Dict> = {
@@ -108,6 +110,17 @@ export const translations: Record<Lang, Dict> = {
       goSubscribe: 'Subscribe', empty: 'No reports yet.',
     },
     detail: { back: '← Back to archive', cannotLoad: 'Cannot load this report (active subscription required).' },
+    share: {
+      share: 'Share', shareOnX: 'Share on X', copy: 'Copy link', copied: 'Copied!',
+      tweet: (title) => `${title} — a free daily US-market recap`,
+    },
+    pub: {
+      tagline: 'A professional US-market closing recap, free to your inbox every weekday.',
+      subscribeCta: 'Get a recap like this every trading day — free.',
+      subscribeBtn: 'Subscribe free →',
+      notFound: 'Report not found.',
+      explore: 'Explore US Stock Daily →',
+    },
   },
   zh: {
     nav: { brand: '📈 美股日报', archive: '日报归档', login: '登录', logout: '退出' },
@@ -183,5 +196,16 @@ export const translations: Record<Lang, Dict> = {
       goSubscribe: '去订阅', empty: '暂无日报。',
     },
     detail: { back: '← 返回归档', cannotLoad: '无法加载该日报（需有效订阅）。' },
+    share: {
+      share: '分享', shareOnX: '分享到 X', copy: '复制链接', copied: '已复制！',
+      tweet: (title) => `${title}｜免费美股收盘日报`,
+    },
+    pub: {
+      tagline: '专业美股收盘复盘，每个工作日免费送到你邮箱。',
+      subscribeCta: '每个交易日都收到这样的复盘——免费。',
+      subscribeBtn: '免费订阅 →',
+      notFound: '未找到该日报。',
+      explore: '了解美股日报 →',
+    },
   },
 }
