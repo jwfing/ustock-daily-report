@@ -17,6 +17,14 @@ const SYSTEM_PROMPT =
   process.env.REPORT_SYSTEM_PROMPT ||
   readFileSync(join(__dir, 'report-system-prompt.txt'), 'utf8')
 
+const TRANSLATE_PROMPT =
+  'You are a professional financial translator. Translate the following US-stock ' +
+  'market daily report from Chinese to English. Rules: preserve every number, ' +
+  'ticker symbol, percentage, table, and Markdown structure exactly as in the ' +
+  'source; do not add, drop, or reinterpret any data. Translate the heading ' +
+  '"## 数据来源" to "## Sources" but keep all URLs and link targets unchanged. ' +
+  'Output only the translated Markdown, with no preamble or commentary.'
+
 // Pacific report-date logic. Mirrors functions/_shared/report-date.ts (unit-tested).
 function pacificDate(now) {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -37,70 +45,107 @@ async function generate(force) {
 
   const admin = createAdminClient({ baseUrl: BASE_URL, apiKey: API_KEY, timeout: 0 })
 
+  // What already exists for this date?
   const existing = await admin.database
-    .from('reports').select('id').eq('report_date', dateStr).limit(1)
+    .from('reports').select('id, lang, content_md').eq('report_date', dateStr)
   if (existing.error) return { status: 500, body: { error: existing.error.message } }
-  if (existing.data && existing.data.length > 0) {
+  const haveZh = existing.data?.find((r) => r.lang === 'zh')
+  const haveEn = existing.data?.find((r) => r.lang === 'en')
+  if (haveZh && haveEn) {
     return { status: 200, body: { skipped: 'already generated', date: dateStr } }
   }
 
-  const userPrompt =
-    `请生成 ${dateStr}（美国西部时间）的《美股收盘日报》。` +
-    `严格按系统提示中《美股收盘日报》模板的结构输出中文 Markdown。` +
-    `标题首行为：美股收盘日报｜${dateStr}。` +
-    `请使用联网搜索获取该交易日的真实最新数据，并在关键数据处标注来源。` +
-    `只输出日报正文 Markdown，不要额外说明。`
+  const rows = []
 
-  let completion
-  try {
-    completion = await admin.ai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-      maxTokens: 16000,
-      // engine:'native' is required: Claude issues its own English web-search
-      // queries → English authoritative sources (CNBC/Reuters/Yahoo/Nasdaq).
-      // The default 'exa' engine derives a query from the Chinese prompt and
-      // returns Chinese portals (sina/163/...). InsForge has no domain filter
-      // and caps maxResults at 10. searchPrompt further steers toward US sources.
-      webSearch: {
-        enabled: true,
-        engine: 'native',
-        maxResults: 10,
-        searchPrompt:
-          'Search English-language authoritative US financial sources only ' +
-          '(CNBC, Reuters, Bloomberg, MarketWatch, WSJ, Yahoo Finance, Nasdaq, CME, FRED). ' +
-          'Prefer primary/official data. Here are the search results:',
-      },
+  // --- Chinese (authoritative, with web search) ---
+  let zhMd = haveZh?.content_md
+  if (!haveZh) {
+    const userPrompt =
+      `请生成 ${dateStr}（美国西部时间）的《美股收盘日报》。` +
+      `严格按系统提示中《美股收盘日报》模板的结构输出中文 Markdown。` +
+      `标题首行为：美股收盘日报｜${dateStr}。` +
+      `请使用联网搜索获取该交易日的真实最新数据，并在关键数据处标注来源。` +
+      `只输出日报正文 Markdown，不要额外说明。`
+
+    let completion
+    try {
+      completion = await admin.ai.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        maxTokens: 16000,
+        webSearch: {
+          enabled: true,
+          engine: 'native',
+          maxResults: 10,
+          searchPrompt:
+            'Search English-language authoritative US financial sources only ' +
+            '(CNBC, Reuters, Bloomberg, MarketWatch, WSJ, Yahoo Finance, Nasdaq, CME, FRED). ' +
+            'Prefer primary/official data. Here are the search results:',
+        },
+      })
+    } catch (e) {
+      return { status: 502, body: { error: `ai call failed: ${e?.message ?? String(e)}` } }
+    }
+
+    const choice = completion?.choices?.[0]
+    zhMd = choice?.message?.content ?? ''
+    if (!zhMd.trim()) return { status: 502, body: { error: 'empty AI response' } }
+
+    const annotations = choice?.message?.annotations ?? []
+    if (annotations.length > 0) {
+      const cites = annotations
+        .filter((a) => a.type === 'url_citation')
+        .map((a) => `- [${a.urlCitation.title ?? a.urlCitation.url}](${a.urlCitation.url})`)
+      if (cites.length > 0) zhMd += `\n\n## 数据来源\n\n${cites.join('\n')}\n`
+    }
+
+    rows.push({
+      report_date: dateStr, lang: 'zh', title: `美股收盘日报｜${dateStr}`,
+      content_md: zhMd, content_html: marked.parse(zhMd),
+      model: completion?.model ?? MODEL, status: 'ready',
     })
-  } catch (e) {
-    return { status: 502, body: { error: `ai call failed: ${e?.message ?? String(e)}` } }
   }
 
-  const choice = completion?.choices?.[0]
-  let md = choice?.message?.content ?? ''
-  if (!md.trim()) return { status: 502, body: { error: 'empty AI response' } }
-
-  const annotations = choice?.message?.annotations ?? []
-  if (annotations.length > 0) {
-    const cites = annotations
-      .filter((a) => a.type === 'url_citation')
-      .map((a) => `- [${a.urlCitation.title ?? a.urlCitation.url}](${a.urlCitation.url})`)
-    if (cites.length > 0) md += `\n\n## 数据来源\n\n${cites.join('\n')}\n`
+  // --- English (translation, no web search → identical numbers) ---
+  if (!haveEn) {
+    if (!zhMd) return { status: 500, body: { error: 'no zh content to translate' } }
+    let tr
+    try {
+      tr = await admin.ai.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: TRANSLATE_PROMPT },
+          { role: 'user', content: zhMd },
+        ],
+        maxTokens: 16000,
+      })
+    } catch (e) {
+      // EN failed. Still persist a freshly-generated ZH row so the day isn't lost;
+      // a later re-run will backfill EN.
+      if (rows.length > 0) await admin.database.from('reports').insert(rows).select()
+      return { status: 502, body: { error: `translate failed: ${e?.message ?? String(e)}`, zh: rows.length > 0 } }
+    }
+    const enMd = tr?.choices?.[0]?.message?.content ?? ''
+    if (enMd.trim()) {
+      rows.push({
+        report_date: dateStr, lang: 'en', title: `US Stock Daily｜${dateStr}`,
+        content_md: enMd, content_html: marked.parse(enMd),
+        model: tr?.model ?? MODEL, status: 'ready',
+      })
+    }
   }
 
-  const html = marked.parse(md)
-  const title = `美股收盘日报｜${dateStr}`
+  if (rows.length === 0) {
+    return { status: 200, body: { skipped: 'already generated', date: dateStr } }
+  }
 
-  const insert = await admin.database.from('reports').insert([{
-    report_date: dateStr, title, content_md: md, content_html: html,
-    model: completion?.model ?? MODEL, status: 'ready',
-  }]).select()
+  const insert = await admin.database.from('reports').insert(rows).select()
   if (insert.error) return { status: 500, body: { error: insert.error.message } }
 
-  return { status: 200, body: { generated: true, date: dateStr, report_id: insert.data?.[0]?.id } }
+  return { status: 200, body: { generated: true, date: dateStr, langs: rows.map((r) => r.lang) } }
 }
 
 const server = createServer((req, res) => {
