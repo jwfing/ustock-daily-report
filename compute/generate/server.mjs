@@ -60,7 +60,20 @@ async function generate(force) {
         { role: 'user', content: userPrompt },
       ],
       maxTokens: 16000,
-      webSearch: { enabled: true, maxResults: 10 },
+      // engine:'native' is required: Claude issues its own English web-search
+      // queries → English authoritative sources (CNBC/Reuters/Yahoo/Nasdaq).
+      // The default 'exa' engine derives a query from the Chinese prompt and
+      // returns Chinese portals (sina/163/...). InsForge has no domain filter
+      // and caps maxResults at 10. searchPrompt further steers toward US sources.
+      webSearch: {
+        enabled: true,
+        engine: 'native',
+        maxResults: 10,
+        searchPrompt:
+          'Search English-language authoritative US financial sources only ' +
+          '(CNBC, Reuters, Bloomberg, MarketWatch, WSJ, Yahoo Finance, Nasdaq, CME, FRED). ' +
+          'Prefer primary/official data. Here are the search results:',
+      },
     })
   } catch (e) {
     return { status: 502, body: { error: `ai call failed: ${e?.message ?? String(e)}` } }
