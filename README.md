@@ -111,4 +111,4 @@ If you're unsure where to start, open an issue and say hi.
 
 ## License
 
-Released under the MIT License.
+Released under the [MIT License](LICENSE).
