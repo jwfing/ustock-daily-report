@@ -1,6 +1,9 @@
 import { createAdminClient } from 'npm:@insforge/sdk'
+import { planBatch, pendingByLang, type Lang, type ReportRow, type Subscriber } from './_shared/send-planning.ts'
 
 const BATCH = 40 // max sends per trigger; stays under the SES hourly cap
+
+const FROM: Record<Lang, string> = { zh: '美股日报', en: 'US Stock Daily' }
 
 // Pacific report-date. Canonical, unit-tested copy: functions/_shared/report-date.ts.
 function pacificDateStr(now: Date): string {
@@ -25,43 +28,38 @@ export default async function (req: Request): Promise<Response> {
 
   const dateStr = new URL(req.url).searchParams.get('date') ?? pacificDateStr(new Date())
 
-  // Today's report must be fully generated (status 'ready'); 'sent' means done,
-  // 'generating' means not ready yet.
+  // All language rows for the date.
   const rep = await admin.database
-    .from('reports').select('*').eq('report_date', dateStr).limit(1)
+    .from('reports').select('*').eq('report_date', dateStr)
   if (rep.error) return json({ error: rep.error.message }, 500)
-  const report = rep.data?.[0]
-  if (!report) return json({ skipped: 'no report for date', date: dateStr })
-  if (report.status === 'generating') return json({ skipped: 'report still generating', date: dateStr })
-  if (report.status === 'sent') return json({ done: true, date: dateStr, remaining: 0 })
+  const reports: ReportRow[] = rep.data ?? []
+  if (reports.length === 0) return json({ skipped: 'no report for date', date: dateStr })
+  const anyReady = reports.some(r => r.status === 'ready' || r.status === 'sent')
+  if (!anyReady) return json({ skipped: 'report still generating', date: dateStr })
 
-  // Active subscribers.
-  const subs = await admin.database
-    .from('subscriptions').select('user_id, email').eq('status', 'active')
-  if (subs.error) return json({ error: subs.error.message }, 500)
-  const activeSubs: Array<{ user_id: string; email: string }> = subs.data ?? []
+  // Active subscribers (with language preference).
+  const subsRes = await admin.database
+    .from('subscriptions').select('user_id, email, lang').eq('status', 'active')
+  if (subsRes.error) return json({ error: subsRes.error.message }, 500)
+  const activeSubs: Subscriber[] = subsRes.data ?? []
 
-  // Already-handled recipients (any delivery row counts; failed is not auto-retried).
-  const dels = await admin.database
-    .from('report_deliveries').select('user_id').eq('report_id', report.id)
-  if (dels.error) return json({ error: dels.error.message }, 500)
-  const handled = new Set((dels.data ?? []).map((d: { user_id: string }) => d.user_id))
+  // Existing deliveries for these reports.
+  const reportIds = reports.map(r => r.id)
+  const delRes = await admin.database
+    .from('report_deliveries').select('report_id, user_id').in('report_id', reportIds)
+  if (delRes.error) return json({ error: delRes.error.message }, 500)
+  const deliveries = delRes.data ?? []
 
-  const pending = activeSubs.filter(s => !handled.has(s.user_id))
-
-  if (pending.length === 0) {
-    await admin.database.from('reports').update({ status: 'sent' }).eq('id', report.id)
-    return json({ done: true, date: dateStr, remaining: 0 })
-  }
-
-  const batch = pending.slice(0, BATCH)
+  // Plan and send this batch.
+  const sends = planBatch({ reports, activeSubs, deliveries, batch: BATCH })
   let sent = 0, failed = 0
-  for (const sub of batch) {
+  const failedLangs = new Set<Lang>()
+  for (const { sub, report } of sends) {
     const { error } = await admin.emails.send({
       to: sub.email,
       subject: report.title,
       html: report.content_html ?? `<pre>${escapeHtml(report.content_md)}</pre>`,
-      from: '美股日报',
+      from: FROM[report.lang as Lang],
     })
     await admin.database.from('report_deliveries').insert([{
       report_id: report.id,
@@ -70,13 +68,21 @@ export default async function (req: Request): Promise<Response> {
       status: error ? 'failed' : 'sent',
       error: error ? String(error.message ?? error) : null,
     }])
-    if (error) failed++; else sent++
+    if (error) { failed++; failedLangs.add(report.lang as Lang) }
+    else { sent++; deliveries.push({ report_id: report.id, user_id: sub.user_id }) }
   }
 
-  const remaining = pending.length - batch.length
-  if (remaining === 0 && failed === 0) {
-    await admin.database.from('reports').update({ status: 'sent' }).eq('id', report.id)
+  // Mark a language's report 'sent' when no subscribers of that language remain
+  // pending and this run had no failures for it.
+  const pending = pendingByLang({ reports, activeSubs, deliveries })
+  for (const r of reports) {
+    const lang = r.lang as Lang
+    if ((r.status === 'ready') && (pending[lang] ?? 0) === 0 && !failedLangs.has(lang)) {
+      await admin.database.from('reports').update({ status: 'sent' }).eq('id', r.id)
+    }
   }
+
+  const remaining = Object.values(pending).reduce((a, b) => a + (b ?? 0), 0)
   return json({ date: dateStr, sent, failed, remaining })
 }
 
