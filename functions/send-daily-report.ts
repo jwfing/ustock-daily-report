@@ -1,9 +1,76 @@
 import { createAdminClient } from 'npm:@insforge/sdk'
-import { planBatch, pendingByLang, type Lang, type ReportRow, type Subscriber } from './_shared/send-planning.ts'
 
 const BATCH = 40 // max sends per trigger; stays under the SES hourly cap
 
+type Lang = 'zh' | 'en'
+
 const FROM: Record<Lang, string> = { zh: '美股日报', en: 'US Stock Daily' }
+
+// ---------------------------------------------------------------------------
+// Per-language send-selection logic. Canonical, unit-tested copy lives in
+// functions/_shared/send-planning.ts. It is inlined here because InsForge
+// function deploys upload a single file (no local-import bundling), mirroring
+// how the Pacific-date helper below is inlined. Keep the two copies in sync.
+// ---------------------------------------------------------------------------
+interface ReportRow {
+  id: string
+  lang: Lang
+  status: 'ready' | 'sent' | 'generating'
+  title: string
+  content_html: string | null
+  content_md: string
+}
+interface Subscriber { user_id: string; email: string; lang: Lang }
+interface DeliveryRow { report_id: string; user_id: string }
+interface PlannedSend { sub: Subscriber; report: ReportRow }
+
+function handledKeys(deliveries: DeliveryRow[]): Set<string> {
+  return new Set(deliveries.map(d => `${d.report_id}:${d.user_id}`))
+}
+
+function readyReportsByLang(reports: ReportRow[]): Partial<Record<Lang, ReportRow>> {
+  const out: Partial<Record<Lang, ReportRow>> = {}
+  for (const r of reports) {
+    if (r.status === 'ready' || r.status === 'sent') out[r.lang] = r
+  }
+  return out
+}
+
+function planBatch(args: {
+  reports: ReportRow[]
+  activeSubs: Subscriber[]
+  deliveries: DeliveryRow[]
+  batch: number
+}): PlannedSend[] {
+  const byLang = readyReportsByLang(args.reports)
+  const handled = handledKeys(args.deliveries)
+  const sends: PlannedSend[] = []
+  for (const sub of args.activeSubs) {
+    if (sends.length >= args.batch) break
+    const report = byLang[sub.lang]
+    if (!report) continue
+    if (handled.has(`${report.id}:${sub.user_id}`)) continue
+    sends.push({ sub, report })
+  }
+  return sends
+}
+
+function pendingByLang(args: {
+  reports: ReportRow[]
+  activeSubs: Subscriber[]
+  deliveries: DeliveryRow[]
+}): Partial<Record<Lang, number>> {
+  const byLang = readyReportsByLang(args.reports)
+  const handled = handledKeys(args.deliveries)
+  const out: Partial<Record<Lang, number>> = {}
+  for (const lang of Object.keys(byLang) as Lang[]) {
+    const report = byLang[lang]!
+    out[lang] = args.activeSubs.filter(
+      s => s.lang === lang && !handled.has(`${report.id}:${s.user_id}`),
+    ).length
+  }
+  return out
+}
 
 // Pacific report-date. Canonical, unit-tested copy: functions/_shared/report-date.ts.
 function pacificDateStr(now: Date): string {
@@ -48,7 +115,7 @@ export default async function (req: Request): Promise<Response> {
   const delRes = await admin.database
     .from('report_deliveries').select('report_id, user_id').in('report_id', reportIds)
   if (delRes.error) return json({ error: delRes.error.message }, 500)
-  const deliveries = delRes.data ?? []
+  const deliveries: DeliveryRow[] = delRes.data ?? []
 
   // Plan and send this batch.
   const sends = planBatch({ reports, activeSubs, deliveries, batch: BATCH })
@@ -59,7 +126,7 @@ export default async function (req: Request): Promise<Response> {
       to: sub.email,
       subject: report.title,
       html: report.content_html ?? `<pre>${escapeHtml(report.content_md)}</pre>`,
-      from: FROM[report.lang as Lang],
+      from: FROM[report.lang],
     })
     await admin.database.from('report_deliveries').insert([{
       report_id: report.id,
@@ -68,7 +135,7 @@ export default async function (req: Request): Promise<Response> {
       status: error ? 'failed' : 'sent',
       error: error ? String(error.message ?? error) : null,
     }])
-    if (error) { failed++; failedLangs.add(report.lang as Lang) }
+    if (error) { failed++; failedLangs.add(report.lang) }
     else { sent++; deliveries.push({ report_id: report.id, user_id: sub.user_id }) }
   }
 
@@ -76,8 +143,7 @@ export default async function (req: Request): Promise<Response> {
   // pending and this run had no failures for it.
   const pending = pendingByLang({ reports, activeSubs, deliveries })
   for (const r of reports) {
-    const lang = r.lang as Lang
-    if ((r.status === 'ready') && (pending[lang] ?? 0) === 0 && !failedLangs.has(lang)) {
+    if (r.status === 'ready' && (pending[r.lang] ?? 0) === 0 && !failedLangs.has(r.lang)) {
       await admin.database.from('reports').update({ status: 'sent' }).eq('id', r.id)
     }
   }
