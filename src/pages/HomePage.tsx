@@ -213,7 +213,7 @@ export function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="border-y border-sand bg-ivory px-6 py-14">
+      {/* <section className="border-y border-sand bg-ivory px-6 py-14">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-2xl font-medium text-near">{h.stepsTitle}</h2>
           <div className="mt-7 grid gap-4 sm:grid-cols-3">
@@ -226,7 +226,7 @@ export function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Bottom CTA */}
       <section className="bg-ink px-6 py-16 text-ivory">
