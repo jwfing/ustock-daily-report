@@ -4,19 +4,20 @@ import { insforge } from '../lib/insforge'
 import { useAuth } from '../auth/AuthContext'
 import { useLang } from '../i18n/LanguageContext'
 
-interface Subscription { id: string; status: string }
+interface Subscription { id: string; status: string; lang: 'zh' | 'en' }
 
 function CtaBlock({ dark = false }: { dark?: boolean }) {
   const { user, loading } = useAuth()
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [sub, setSub] = useState<Subscription | null>(null)
   const [busy, setBusy] = useState(false)
+  const [pickLang, setPickLang] = useState<'zh' | 'en'>(lang)
   const [ready, setReady] = useState(false)
 
   async function load() {
     if (!user) { setReady(true); return }
     const { data } = await insforge.database
-      .from('subscriptions').select('id, status').eq('user_id', user.id).limit(1)
+      .from('subscriptions').select('id, status, lang').eq('user_id', user.id).limit(1)
     setSub((data?.[0] as Subscription) ?? null)
     setReady(true)
   }
@@ -27,11 +28,19 @@ function CtaBlock({ dark = false }: { dark?: boolean }) {
     setBusy(true)
     if (sub) {
       await insforge.database.from('subscriptions')
-        .update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', sub.id)
+        .update({ status: 'active', lang: pickLang, updated_at: new Date().toISOString() }).eq('id', sub.id)
     } else {
       await insforge.database.from('subscriptions')
-        .insert([{ user_id: user.id, email: user.email, status: 'active' }])
+        .insert([{ user_id: user.id, email: user.email, status: 'active', lang: pickLang }])
     }
+    await load(); setBusy(false)
+  }
+
+  async function changeLang(next: 'zh' | 'en') {
+    if (!sub) return
+    setBusy(true)
+    await insforge.database.from('subscriptions')
+      .update({ lang: next, updated_at: new Date().toISOString() }).eq('id', sub.id)
     await load(); setBusy(false)
   }
 
@@ -42,6 +51,22 @@ function CtaBlock({ dark = false }: { dark?: boolean }) {
       .update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', sub.id)
     await load(); setBusy(false)
   }
+
+  const LangPicker = ({ value, onChange }: { value: 'zh' | 'en'; onChange: (l: 'zh' | 'en') => void }) => (
+    <div className="inline-flex overflow-hidden rounded-full border border-ink/30 text-sm">
+      {(['zh', 'en'] as const).map((l) => (
+        <button
+          key={l}
+          type="button"
+          disabled={busy}
+          onClick={() => onChange(l)}
+          className={`px-3 py-1 transition ${value === l ? 'bg-ink text-ivory' : 'text-ink hover:bg-ink-tint'}`}
+        >
+          {l === 'zh' ? t.home.langZh : t.home.langEn}
+        </button>
+      ))}
+    </div>
+  )
 
   const pill = dark
     ? 'rounded-full border-[1.5px] border-ivory bg-ivory px-6 py-3 font-medium text-ink transition hover:bg-transparent hover:text-ivory'
@@ -71,6 +96,10 @@ function CtaBlock({ dark = false }: { dark?: boolean }) {
           </span>
           <Link to="/reports" className={pill}>{t.home.viewArchive}</Link>
         </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className={trust}>{t.home.emailLang}</span>
+          <LangPicker value={sub.lang} onChange={changeLang} />
+        </div>
         <button disabled={busy} onClick={unsubscribe} className={`${trust} underline-offset-4 hover:underline disabled:opacity-50`}>
           {t.home.unsubscribe}
         </button>
@@ -80,7 +109,10 @@ function CtaBlock({ dark = false }: { dark?: boolean }) {
 
   return (
     <div className={`flex flex-col gap-2 ${center}`}>
-      <button disabled={busy} onClick={subscribe} className={`${pill} disabled:opacity-50`}>{t.home.subscribeStart}</button>
+      <div className="flex items-center gap-3">
+        <button disabled={busy} onClick={subscribe} className={`${pill} disabled:opacity-50`}>{t.home.subscribeStart}</button>
+        <LangPicker value={pickLang} onChange={setPickLang} />
+      </div>
       <span className={trust}>{t.home.trustLine}</span>
     </div>
   )

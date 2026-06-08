@@ -16,6 +16,9 @@ export interface Dict {
     badge: string; heroTitleL1: string; heroTitleL2: string; heroSubtitle: string
     subscribeFree: string; subscribeStart: string; trustLine: string
     subscribed: string; viewArchive: string; unsubscribe: string; loginToSubscribe: string
+    emailLang: string
+    langZh: string
+    langEn: string
     featuresTitle: string; featuresSub: string
     features: Array<{ title: string; desc: string }>
     sampleTitle: string; sampleBadge: string; sampleSubject: string
@@ -62,6 +65,9 @@ export const translations: Record<Lang, Dict> = {
       trustLine: 'Always free · Unsubscribe anytime · At most 5 emails a week',
       subscribed: '✓ Subscribed', viewArchive: 'View archive →', unsubscribe: 'Unsubscribe',
       loginToSubscribe: 'Sign in to subscribe',
+      emailLang: 'Email language',
+      langZh: '中文',
+      langEn: 'English',
       featuresTitle: 'Every report answers the questions that matter',
       featuresSub: 'Why the market moved, what money is buying and selling, and what to watch tomorrow.',
       features: [
@@ -148,6 +154,9 @@ export const translations: Record<Lang, Dict> = {
       trustLine: '永久免费 · 随时退订 · 一周最多 5 封',
       subscribed: '✓ 已订阅', viewArchive: '查看日报归档 →', unsubscribe: '取消订阅',
       loginToSubscribe: '登录后订阅',
+      emailLang: '邮件语言',
+      langZh: '中文',
+      langEn: 'English',
       featuresTitle: '每份日报，都帮你回答这些问题',
       featuresSub: '市场为什么涨跌、资金在买什么卖什么、明天该关注什么。',
       features: [
