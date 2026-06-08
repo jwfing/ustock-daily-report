@@ -1215,3 +1215,33 @@ npx @insforge/cli --json --yes config apply
 - **安全**：函数以 `CRON_SECRET` 头鉴权；admin api key、OpenRouter key 仅存 secret，绝不进前端。
 - **待实现期确认项**：① 边缘函数运行时是否自动注入 `INSFORGE_BASE_URL`（部署文档示例如此使用）；若未注入，则把它也加为 secret。② `ADMIN_API_KEY` 是否与保留 secret 命名冲突——`secrets list` 核对，必要时改名。③ Deno 下 `npm:@insforge/sdk` 的 `createAdminClient` / `admin.emails.send` 行为以实跑为准，若 admin 客户端不支持 emails，则在发送函数内改用 anon 客户端调用 `emails.send`（emails 用 anonKey 即可，见 email 文档）。
 ```
+
+---
+
+## 实现期变更记录（与原计划的偏差）
+
+实跑中发现的约束，导致以下调整：
+
+1. **AI 网关而非 OpenRouter key。** 本后端 `ai setup` 不可用；改用 InsForge SDK 的 `client.ai.chat.completions.create()`，并开启 `webSearch: { enabled: true, maxResults: 10 }`——模型因此能联网取**真实当日行情**并标注来源，原"无实时数据"限制大幅缓解。无需 `OPENROUTER_API_KEY`。
+2. **不需要 `ADMIN_API_KEY` secret。** 后端已自动向函数注入 reserved secrets `INSFORGE_BASE_URL`、`API_KEY`、`ANON_KEY`；函数直接 `createAdminClient({ baseUrl: INSFORGE_BASE_URL, apiKey: API_KEY })`。
+3. **生成移到 Compute 容器（关键架构变更）。** 完整 15 节 + 联网报告生成约需 **228s**，超过边缘函数 ~200s 网关上限（同步 504；`EdgeRuntime.waitUntil` 后台任务也会在 ~200s 被杀）。因此生成逻辑放到 `compute/generate`（Node HTTP 容器，无超时），系统 prompt 打入镜像，小配置经 `--env` 注入。**send 仍是边缘函数**（快、在上限内）。
+4. **`reports.status` 增加 `'generating'`**（迁移 `20260608005314`）：容器写入前先占位（实际容器实现里可一次性写入 ready，占位主要用于边缘背景方案，已弃用）。
+5. **`force=1`、`date=` 参数**：生成/发送函数支持 secret-gated 的手动触发与指定日期，便于回填与测试。
+
+### 阻塞项（需后端升级）
+Compute 部署当前被后端版本 bug 阻断：旧版 InsForge 用 `<projectId>-network` 作 Fly 网络名，本项目 UUID 以数字 `2` 开头被 Fly 拒绝（`Name not a valid network name`）。修复（`n-<appkey>`）在新版 InsForge 中已存在。**升级本项目的 InsForge 服务端后**，重跑：
+
+```bash
+API_KEY=$(npx @insforge/cli secrets get API_KEY | sed 's/^API_KEY = //')
+CS=$(npx @insforge/cli secrets get CRON_SECRET | sed 's/^CRON_SECRET = //')
+ENVJSON=$(printf '{"INSFORGE_URL":"https://4s425rbh.us-east.insforge.app","API_KEY":"%s","CRON_SECRET":"%s"}' "$API_KEY" "$CS")
+npx @insforge/cli compute deploy compute/generate --name reportgen --port 8080 --cpu shared-1x --memory 512 --env "$ENVJSON"
+# 取容器 endpoint：
+npx @insforge/cli compute list
+# 用 endpoint 建生成调度（UTC 03:00 工作日由函数内 Pacific 判断）：
+npx @insforge/cli schedules create --name "Generate Daily Report" --cron "0 3 * * *" \
+  --url "https://reportgen-<project>.fly.dev/?" --method POST \
+  --headers '{"X-Cron-Secret": "${{secrets.CRON_SECRET}}"}'
+# 冒烟：
+curl -X POST "https://reportgen-<project>.fly.dev/?force=1" -H "X-Cron-Secret: $CS"
+```
