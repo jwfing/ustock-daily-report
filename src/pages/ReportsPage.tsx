@@ -6,22 +6,24 @@ import { useLang } from '../i18n/LanguageContext'
 interface ReportRow { id: string; report_date: string; title: string }
 
 export function ReportsPage() {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [rows, setRows] = useState<ReportRow[]>([])
   const [err, setErr] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    (async () => {
+    setLoading(true)
+    ;(async () => {
       const { data, error } = await insforge.database
         .from('reports').select('id, report_date, title')
+        .eq('lang', lang)
         .in('status', ['ready', 'sent'])
         .order('report_date', { ascending: false }).limit(60)
       if (error) setErr(true)
       else setRows((data as ReportRow[]) ?? [])
       setLoading(false)
     })()
-  }, [])
+  }, [lang])
 
   if (loading) return <p className="text-stone">{t.common.loading}</p>
 
