@@ -13,4 +13,91 @@
     background: #f5f4ed;
     color: #141413;
   }
+  /* One consistent, visible focus indicator across every interactive element.
+     Dark surfaces override the colour locally (e.g. the ink CTA band). */
+  :focus-visible {
+    outline: 2px solid #1b365d;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+}
+
+/* Report body — kami-themed long-form typography (Tailwind Typography overrides).
+   The brand carries all the way through the article, not just the chrome. */
+@layer components {
+  .prose-kami {
+    --tw-prose-body: #141413;
+    --tw-prose-headings: #141413;
+    --tw-prose-lead: #141413;
+    --tw-prose-links: #1b365d;
+    --tw-prose-bold: #141413;
+    --tw-prose-counters: #6b6a64;
+    --tw-prose-bullets: #b6b3a6;
+    --tw-prose-hr: #d8d5c8;
+    --tw-prose-quotes: #141413;
+    --tw-prose-quote-borders: #d8d5c8;
+    --tw-prose-captions: #6b6a64;
+    --tw-prose-code: #1b365d;
+    --tw-prose-pre-code: #141413;
+    --tw-prose-pre-bg: #eef2f7;
+    --tw-prose-th-borders: #d8d5c8;
+    --tw-prose-td-borders: #d8d5c8;
+  }
+  /* Links: editorial underline, ink hover */
+  .prose-kami a {
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+    transition: color 0.15s ease;
+  }
+  .prose-kami a:hover { color: #2d5a8a; }
+  /* Quotes: italic, no thick colour stripe (side-stripe ban) */
+  .prose-kami blockquote {
+    border-left: 0;
+    padding-left: 0;
+    font-style: italic;
+    font-weight: 400;
+    color: #1b365d;
+  }
+  .prose-kami blockquote p:first-of-type::before,
+  .prose-kami blockquote p:last-of-type::after { content: ''; }
+  /* Inline code: ink on a faint ink tint, no backtick pseudo-quotes */
+  .prose-kami :not(pre) > code {
+    background: #eef2f7;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .prose-kami :not(pre) > code::before,
+  .prose-kami :not(pre) > code::after { content: ''; }
+  /* Tables: hairline rules, quiet header, tabular figures */
+  .prose-kami thead th { font-weight: 500; color: #6b6a64; }
+  .prose-kami td { font-variant-numeric: tabular-nums; }
+  /* Wide tables scroll inside their own container instead of breaking the page */
+  .prose-kami .table-scroll {
+    overflow-x: auto;
+    margin: 1.5em 0;
+  }
+  .prose-kami .table-scroll > table { margin: 0; }
+  /* Signed market figures, coloured by locale in code; sign always present */
+  .prose-kami .fig-green { color: #2f6e4f; font-weight: 500; }
+  .prose-kami .fig-red { color: #a3392f; font-weight: 500; }
+}
+
+@layer utilities {
+  /* Lead-only entrance: scoped to the hero, never applied section-by-section.
+     The resting (un-animated) state is fully visible, so reduced-motion users
+     and non-animating renderers see content immediately. */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .reveal-2 { animation-delay: 0.07s; }
+    .reveal-3 { animation-delay: 0.14s; }
+    .reveal-4 { animation-delay: 0.21s; }
+  }
+
+  @keyframes reveal-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
 }

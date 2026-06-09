@@ -28,7 +28,7 @@ export function Layout() {
   }
   return (
     <div className="min-h-screen bg-parchment font-serif text-near">
-      <header className="border-b border-sand bg-ivory">
+      <header className="sticky top-0 z-40 border-b border-sand bg-ivory">
         <div className="mx-auto flex max-w-3xl items-center justify-between p-4">
           <Link to="/" className="flex items-center gap-2 text-lg font-medium tracking-tight text-near">
             <Logo className="h-7 w-7" />
