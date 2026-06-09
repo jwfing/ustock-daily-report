@@ -25,6 +25,51 @@ const TRANSLATE_PROMPT =
   '"## 数据来源" to "## Sources" but keep all URLs and link targets unchanged. ' +
   'Output only the translated Markdown, with no preamble or commentary.'
 
+// Call OpenRouter directly (not through the InsForge AI gateway). The gateway
+// caps requests at ~300s, and a web-search-augmented 16k-token generation
+// exceeds that, returning 504. This container is long-lived, so we own the
+// timeout (default 15 min) and bypass the gateway wall entirely.
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 900_000 // 15 min
+const SEARCH_PROMPT =
+  'Search English-language authoritative US financial sources only ' +
+  '(CNBC, Reuters, Bloomberg, MarketWatch, WSJ, Yahoo Finance, Nasdaq, CME, FRED). ' +
+  'Prefer primary/official data.'
+
+async function openrouterChat({ messages, maxTokens, webSearch }) {
+  if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not set')
+  const body = { model: MODEL, messages, max_tokens: maxTokens }
+  if (webSearch) {
+    // Bounded single web search (Exa default), with url_citation annotations.
+    body.plugins = [{ id: 'web', max_results: 10, search_prompt: SEARCH_PROMPT }]
+  }
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), AI_TIMEOUT_MS)
+  let res
+  try {
+    res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://4s425rbh.insforge.site',
+        'X-Title': 'US Stock Daily',
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+  const text = await res.text()
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${text.slice(0, 500)}`)
+  let json
+  try { json = JSON.parse(text) } catch { throw new Error(`OpenRouter bad JSON: ${text.slice(0, 300)}`) }
+  if (json.error) throw new Error(`OpenRouter error: ${json.error.message ?? JSON.stringify(json.error)}`)
+  return json
+}
+
 // Pacific report-date logic. Mirrors functions/_shared/report-date.ts (unit-tested).
 function pacificDate(now) {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -69,22 +114,13 @@ async function generate(force) {
 
     let completion
     try {
-      completion = await admin.ai.chat.completions.create({
-        model: MODEL,
+      completion = await openrouterChat({
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
         maxTokens: 16000,
-        webSearch: {
-          enabled: true,
-          engine: 'native',
-          maxResults: 10,
-          searchPrompt:
-            'Search English-language authoritative US financial sources only ' +
-            '(CNBC, Reuters, Bloomberg, MarketWatch, WSJ, Yahoo Finance, Nasdaq, CME, FRED). ' +
-            'Prefer primary/official data. Here are the search results:',
-        },
+        webSearch: true,
       })
     } catch (e) {
       return { status: 502, body: { error: `ai call failed: ${e?.message ?? String(e)}` } }
@@ -97,8 +133,8 @@ async function generate(force) {
     const annotations = choice?.message?.annotations ?? []
     if (annotations.length > 0) {
       const cites = annotations
-        .filter((a) => a.type === 'url_citation')
-        .map((a) => `- [${a.urlCitation.title ?? a.urlCitation.url}](${a.urlCitation.url})`)
+        .filter((a) => a.type === 'url_citation' && a.url_citation?.url)
+        .map((a) => `- [${a.url_citation.title ?? a.url_citation.url}](${a.url_citation.url})`)
       if (cites.length > 0) zhMd += `\n\n## 数据来源\n\n${cites.join('\n')}\n`
     }
 
@@ -114,8 +150,7 @@ async function generate(force) {
     if (!zhMd) return { status: 500, body: { error: 'no zh content to translate' } }
     let tr
     try {
-      tr = await admin.ai.chat.completions.create({
-        model: MODEL,
+      tr = await openrouterChat({
         messages: [
           { role: 'system', content: TRANSLATE_PROMPT },
           { role: 'user', content: zhMd },
@@ -161,9 +196,23 @@ const server = createServer((req, res) => {
   if (req.headers['x-cron-secret'] !== CRON_SECRET) return send(403, { error: 'forbidden' })
 
   const force = url.searchParams.get('force') === '1'
+  const wait = url.searchParams.get('wait') === '1'
+
+  // Synchronous mode (manual / debug): run to completion and return the result.
+  if (wait) {
+    generate(force)
+      .then((r) => send(r.status, r.body))
+      .catch((e) => send(500, { error: e?.message ?? String(e) }))
+    return
+  }
+
+  // Default: fire-and-forget. Generation takes minutes; the scheduler's HTTP
+  // client times out long before that. Ack immediately and run in the
+  // background, logging the outcome (inspect the reports table to confirm).
+  send(202, { accepted: true, date: pacificDate(new Date()).dateStr })
   generate(force)
-    .then((r) => send(r.status, r.body))
-    .catch((e) => send(500, { error: e?.message ?? String(e) }))
+    .then((r) => console.log('generate result:', JSON.stringify(r.body)))
+    .catch((e) => console.error('generate failed:', e?.message ?? String(e)))
 })
 
 server.listen(PORT, () => console.log(`generator listening on ${PORT}`))
