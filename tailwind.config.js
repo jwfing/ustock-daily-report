@@ -14,6 +14,9 @@ export default {
         near: '#141413',
         stone: '#6b6a64',
         line: '#d8d5c8',
+        // market figures — always paired with the +/- sign in code; locale maps which sign gets which colour.
+        pine: '#2f6e4f', // green
+        oxblood: '#a3392f', // red
       },
       fontFamily: {
         serif: ['Charter', 'Georgia', 'Palatino', '"Times New Roman"', 'serif'],
